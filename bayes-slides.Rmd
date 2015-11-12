@@ -1,0 +1,75 @@
+---
+title: "Introduction to Bayesian Data Analysis"
+author: "Grant R. McDermott"
+date: "SFG, 13 November 2015"
+output: 
+  ioslides_presentation:
+    fig_caption: true
+---
+
+## Highlights
+
+- Give you a flavour of Bayesian thinking.
+- Go through some simple examples (including code) of how to do this in *R*.
+
+
+# Introduction
+
+## Test figure {.flexbox .vcenter .smaller}
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+library(dplyr) ## For data wrangling
+library(tidyr)
+library(ggplot2)
+library(cowplot) ## For easier, publication-ready formatting of ggplot output
+library(extrafont)
+library(grid)
+library(scales)
+library(extrafont)
+library(RColorBrewer)
+
+# type <- c("Oil", "Coal", "Gas", "Nuclear", "Hydro", "Biofuels & waste", "Other")
+# tpes <- c(31.4, 29.0, 21.3, 4.8, 2.4, 10.0, 1.1)
+# elec <- c(5.0, 40.4, 22.5, 10.9, 16.2, NA, 5.0)
+# # elec <- c(5.0, 40.4, 22.5, 10.9, 16.2, 0, 5.0)
+
+type <- c("Oil", "Coal", "Gas", "Hydro", "Nuclear", "Other")
+# tpes <- C(32.8, 30.2, 24.0, 4.4, 6.6, 1.9) ## BP Statistical Review (2015): Year = 2012
+tpes <- c(32.6, 30.0, 23.7, 6.8, 4.4, 2.5) ## BP Statistical Review (2015): Year = 2014
+elec <- c(5.0, 40.4, 22.5, 16.2, 10.9, 5.0)
+# elec <- c(5.0, 40.4, 22.5, 10.9, 16.2, 0, 5.0)
+
+energy <- tbl_df(data.frame(cbind(type, tpes, elec)))
+
+energy <- 
+  energy %>%
+  gather(form, perc, -type) %>%
+  mutate(perc = as.numeric(perc)) %>%
+  mutate(form_labs = ifelse(form == "tpes", "(a) Total primary energy supply  \n", "(b) Electricity generation only  \n")) 
+
+energy$type <- factor(energy$type, levels = type)
+energy$form_labs <- factor(energy$form_labs, levels = c("(a) Total primary energy supply  \n", "(b) Electricity generation only  \n"))
+
+# my_grbu <- c(rep("#BDBDBD", times = 4), brewer.pal(3, "Blues")[2], rep("#BDBDBD", times = 1))
+my_grbu <- c(rep("#BDBDBD", times = 3), brewer.pal(3, "Blues")[2], rep("#BDBDBD", times = 2))
+
+ggplot(energy %>% filter(!is.na(perc)), #filter(perc != 0), 
+       aes(x = factor(type), y = perc/100, fill = factor(type)), color = factor(type)
+       ) +  
+  stat_summary(fun.y = mean, geom = "bar") +
+  # scale_fill_grey() +
+  scale_fill_manual(values = my_grbu, breaks = type) +
+  scale_y_continuous(labels = percent) +
+  labs(x = NULL, y = NULL) + 
+  facet_wrap(~ form_labs, scales = "free_x") +
+  theme(legend.position = "none",
+        text = element_text(family = "Palatino Linotype"),
+        axis.title = element_text(family = "Palatino Linotype"),
+        axis.text.x = element_text(angle = 45, vjust = 0.95, hjust = 1.01),
+        strip.text = element_text(size = 16), 
+        strip.background = element_rect(fill = "white"), ## Facet strip
+        panel.margin = unit(5, "lines") ## Increase gap between facet panels
+        )
+```
+
+Source: BP (2015) and IEA (2014)
