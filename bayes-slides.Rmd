@@ -206,53 +206,86 @@ $$ p(\theta|X) \propto p(X|\theta)p(\theta) $$
     + All work in similar ways, but I'd advise sticking with **rjags** for newbies (v. flexible, good support and documentation, etc.)
 
 
-## Test figure {.flexbox .vcenter .smaller}
+## Let's go through a very simple example {.flexbox .vcenter .smaller}
 
-```{r, echo=FALSE, message=FALSE, warning=FALSE}
-# library(dplyr) ## For data wrangling
-# library(tidyr)
-# library(ggplot2)
-# library(cowplot) ## For easier, publication-ready formatting of ggplot output
-# library(extrafont)
-# library(grid)
-# library(scales)
-# library(extrafont)
-# library(RColorBrewer)
-# 
-# type <- c("Oil", "Coal", "Gas", "Hydro", "Nuclear", "Other")
-# tpes <- c(32.6, 30.0, 23.7, 6.8, 4.4, 2.5) ## BP Statistical Review (2015): Year = 2014
-# elec <- c(5.0, 40.4, 22.5, 16.2, 10.9, 5.0)
-# 
-# energy <- tbl_df(data.frame(cbind(type, tpes, elec)))
-# 
-# energy <- 
-#   energy %>%
-#   gather(form, perc, -type) %>%
-#   mutate(perc = as.numeric(perc)) %>%
-#   mutate(form_labs = ifelse(form == "tpes", "(a) Total primary energy supply  \n", "(b) Electricity generation only  \n")) 
-# 
-# energy$type <- factor(energy$type, levels = type)
-# energy$form_labs <- factor(energy$form_labs, levels = c("(a) Total primary energy supply  \n", "(b) Electricity generation only  \n"))
-# 
-# my_grbu <- c(rep("#BDBDBD", times = 3), brewer.pal(3, "Blues")[2], rep("#BDBDBD", times = 2))
-# 
-# ggplot(energy %>% filter(!is.na(perc)), #filter(perc != 0), 
-#        aes(x = factor(type), y = perc/100, fill = factor(type)), color = factor(type)
-#        ) +  
-#   stat_summary(fun.y = mean, geom = "bar") +
-#   # scale_fill_grey() +
-#   scale_fill_manual(values = my_grbu, breaks = type) +
-#   scale_y_continuous(labels = percent) +
-#   labs(x = NULL, y = NULL) + 
-#   facet_wrap(~ form_labs, scales = "free_x") +
-#   theme(legend.position = "none",
-#         text = element_text(family = "Palatino Linotype"),
-#         axis.title = element_text(family = "Palatino Linotype"),
-#         axis.text.x = element_text(angle = 45, vjust = 0.95, hjust = 1.01),
-#         strip.text = element_text(size = 16), 
-#         strip.background = element_rect(fill = "white"), ## Facet strip
-#         panel.margin = unit(5, "lines") ## Increase gap between facet panels
-#         )
+```{r, message = F, warning = F}
+
+## Load packages
+require(rjags)
+require(dplyr)
+require(tidyr)
+require(ggplot2)
+
+## Create some fake data
+rm(list=ls())
+set.seed(1280)
+x <- runif(50)
+y <- 3 + 2*x + rnorm(50, mean = 0, sd = 2)
+
+dat <- data.frame(y, x)
 ```
 
-Source: BP (2015) and IEA (2014)
+## Let's go through a very simple example {.flexbox .vcenter .smaller}
+
+```{r}
+plot(dat$x, dat$y)
+```
+
+## Let's go through a very simple example {.flexbox .vcenter .smaller}
+
+- JAGS needs to call a .txt file with instructions about the model.
+- Goof practice to write this in the *R* file so that everything is self-contained.
+```{r}
+modelstring <- paste(
+  "model {
+
+  for (i in 1:N){
+  
+  y[i] ~ dnorm (mu.y[i], tau.y)
+  mu.y[i] <- alpha + beta*x[i]
+  
+  }
+  
+  alpha ~ dnorm( 0, 0.001 )
+  beta ~ dnorm( 0, 0.001 )
+  tau.y ~ dgamma(0.001, 0.001)  
+  
+  }" 
+  )  
+
+writeLines(modelstring, con = "example1.txt" )
+```
+
+## Let's go through a very simple example {.flexbox .vcenter .smaller}
+```{r}
+## Run the JAGS model
+N <- length(x)
+
+dat <- list("N" = N, "y" = y, "x" = x)
+jags.inits <- function() {list (alpha = 0, beta = 0, tau.y = 1)}
+parameters <- c("alpha", "beta", "tau.y")
+
+reg.jags <- jags.model(file = "example1.txt", data=dat, inits=jags.inits, n.chains=1, n.adapt=1000)
+update(reg.jags, n.iter = 1000) # burn in
+regression.sim <- coda.samples(reg.jags, variable.names=parameters, n.iter=15000)
+```
+
+## Let's go through a very simple example {.flexbox .vcenter .smaller}
+```{r}
+## Model diagnostics
+geweke.diag(regression.sim)
+heidel.diag(as.mcmc(regression.sim))
+raftery.diag(as.mcmc(regression.sim))
+```
+
+## Let's go through a very simple example {.flexbox .vcenter .smaller}
+```{r}
+summary(regression.sim)
+```
+
+## Let's go through a very simple example {.flexbox .vcenter .smaller}
+```{r}
+reg.df <- tbl_df(as.data.frame(regression.sim[[1]])) 
+reg.df <- reg.df %>% gather(coef, value)
+ggplot(reg.df, aes(x = value)) + geom_density() +  facet_wrap(~ coef) 
+```
