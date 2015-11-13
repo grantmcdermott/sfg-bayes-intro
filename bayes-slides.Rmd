@@ -5,71 +5,254 @@ date: "SFG, 13 November 2015"
 output: 
   ioslides_presentation:
     fig_caption: true
+    logo: ./figures/sfg.png
 ---
 
 ## Highlights
 
 - Give you a flavour of Bayesian thinking.
 - Go through some simple examples (including code) of how to do this in *R*.
+- But first, a question...
+
+
+## If all of your friends jumped off a bridge, would you jump too? {.build .flexbox .vcenter} 
+
+![](figures/bridge.png) 
+
+
+- **Bayesians don't ignore prior information!**
+
+
 
 
 # Introduction
 
+## Bayes' rule is very easily derived
+
+$P(A|B) = \frac{P(A \cap B)}{P(B)}$
+
+$P(B|A) = \frac{P(A \cap B)}{P(A)}$
+
+$\Rightarrow P(A \cap B) = P(A|B)P(B) = P(B|A)P(A)$
+
+$\Rightarrow P(A|B) = \frac{P(B|A)P(A)}{P(B)}$
+
+>- The general structure provided by this rule can be applied to any statistical problem.
+
+
+## A canonical application: Mammograms and false positives
+
+- What is probability that a women has breast cancer (A) if she get a positive mammogram (B)?
+- We have $P(A) = 1.4\%$, $P(\overline{A}) = 98.6\%$, $P(B|A) = 75\%$, $P(B|\overline{A}) = 10\%$.
+- Plug into Bayes' theorem:
+$$ P(A|B) = \frac{P(B|A)P(A)}{P(B)} = \frac{P(B|A)P(A)}{P(B|A)P(A) + P(B|\overline{A})P(\overline{A})} $$
+$$ \therefore P(A|B) = \frac{0.75 * 0.014}{0.75 * 0.014 + 0.1 * 0.986} = 10\% $$
+
+
+
+## Bayesian versus frequentist
+
+- Bayesians
+    + Probability is a degree of (subjective) belief.
+    + Parameters (e.g. regression coefficients) are treated as random variables.
+    
+- Frequentists
+    + Probability is the limiting frequency in a large number of repeated draws.
+    + Parameters are treated as fixed, but unknown.
+
+>- Bayesian concepts are intuitive, matching our everday understanding of "probability" or "belief in a hypothesis".
+    + Compare confusion over *p*-values and confidence intervals in frequentist paradigm.
+    + Bayesian methods are also very flexible and can accomodate any type of distribution.
+    
+
+## Conjugate priors
+
+- In some cases --- when the prior and likelihood are simple enough and come from the same "family" of distributions --- we can analytically derive the posterior. We call these conjugate priors.
+- Example: The binomial distribution is conjugate with the beta distribution.
+    + Binomial: $f(k|\theta) = \binom{N}{K}\theta^k (1-\theta)^{N-k}$
+    + Beta: $f(\theta|\alpha,\beta) = \frac{\Gamma(\alpha+\beta)}{\Gamma(\alpha)\Gamma(\beta)}\theta^{\alpha-1}(1-\theta)^{\beta-1}$
+    + Posterior: $f(\theta|k,\alpha,\beta) \propto \theta^{k+\alpha-1}(1-\theta)^{N-k+\beta-1}$
+    
+>- We can apply these distributions to game of coin flips. We are interested in whether a coin is "fair" or not.
+
+## Conjugate priors (cont.)
+
+- We have two participants. Let's call them Matt and Chris.
+- Matt is a trusting ecologist from Canada. He is willing to bet that the coin is probably fair..
+    + Matt's prior is centered around 0.5: $Beta(\alpha = 1, \beta = 1)$.
+- Chris is a more cautious (cynical?) economist and is holding off judgement until he sees some data.
+    + Chris has a "flat" prior: $Beta(\alpha = 20, \beta = 20)$.
+>- It turns out that the coin is actually unfair! It only has a 20% chance of landing on heads.
+
+
+## We can simulate this is in *R* {.smaller}
+
+```{r, echo=-(1:2)}
+set.seed(123)
+
+coin_sim <- function(p, N, M_alpha, M_beta, C_alpha, C_beta) {
+  ## Simulate coin outcomes in advance. "Success" = heads.
+  outcomes <- sample(1:0, N, prob = c(p, 1 - p), replace = TRUE)
+  success <- cumsum(outcomes)
+  ## Matt prior
+  curve(dbeta(x, M_alpha, M_beta), 
+        col = "red", lwd = 2, lty = 2, xlim = c(0, 1), ylim = c(0, 20), 
+        xlab = "P(Heads)", ylab = "Density")
+  ## Chris prior
+  curve(dbeta(x, C_alpha, C_beta),
+        col = "dodgerblue", lwd = 2, lty = 2, add = TRUE)
+  ## True probability of coin
+  lines(x = c(p, p), y = c(0, 20), lty = 2, lwd = 1,col = "grey60")
+  ## Matt posterior
+  curve(dbeta(x, M_alpha+success[N], M_beta+(N-success[N])),
+        add = TRUE, col = "red", lwd = 2)
+  ## Chris posterior
+  curve(dbeta(x, C_alpha+success[N], C_beta+(N-success[N])),
+        add = TRUE, col = "dodgerblue", lwd = 2)
+  ##Legend  
+  legend('topleft', lty = 1, col = c("red", "dodgerblue"),
+         legend = c(paste0("Matt ~ Beta(", M_alpha , ", " , M_beta , ")"),
+                    paste0("Chris ~ Beta(", C_alpha , ", " , C_beta , ")")))
+  text(0.75, 17, label = paste(N, "flips:", success[N], "heads,", N-success[N], "tails"))
+}
+
+```
+
+## We can simulate this is in *R* {.flexbox .vcenter .smaller}
+
+```{r}
+coin_sim(p = 0.25, N = 1, 
+         M_alpha = 20, M_beta = 20,
+         C_alpha = 1, C_beta = 1
+         ) 
+```
+
+## We can simulate this is in *R* {.flexbox .vcenter .smaller}
+
+```{r}
+coin_sim(p = 0.25, N = 10, 
+         M_alpha = 20, M_beta = 20,
+         C_alpha = 1, C_beta = 1
+         ) 
+```
+
+## We can simulate this is in *R* {.flexbox .vcenter .smaller}
+
+```{r}
+coin_sim(p = 0.25, N = 50, 
+         M_alpha = 20, M_beta = 20,
+         C_alpha = 1, C_beta = 1
+         ) 
+```
+
+## We can simulate this is in *R* {.flexbox .vcenter .smaller}
+
+```{r}
+coin_sim(p = 0.25, N = 100, 
+         M_alpha = 20, M_beta = 20,
+         C_alpha = 1, C_beta = 1
+         ) 
+```
+
+
+## We can simulate this is in *R* {.flexbox .vcenter .smaller}
+
+```{r}
+coin_sim(p = 0.25, N = 200, 
+         M_alpha = 20, M_beta = 20,
+         C_alpha = 1, C_beta = 1
+         ) 
+```
+
+
+## Some important, generalisable points
+
+- The posterior can be thought of as a weighted average of the prior and data (through the likelihood function).
+    + We *update* our priors in combination with new data.
+- Which component dominates (prior versus data) will depend on their relative uncertainties.
+    + The more confident we are in our prior, the more we will tend to stick to it.
+- With "enough" data, we generally -- though not always -- get posterior convergence regardless of prior.
+
+
+# Bayesian regression
+
+## Bayesian regression equation
+
+$$ p(\theta|X) = \frac{p(X|\theta)p(\theta)}{p(X)} $$
+
+- $p(\theta|X)$ ~ Posterior probability. *"How probable are our parameters $(\theta)$, given the data $(X)$?"*
+- $p(X|\theta)$ ~ Likelihood function. *"How likely are the data for a given set of parameters or state of the world (e.g. if we assume normal distribution)?"*
+- $p(\theta)$ ~ Prior probability. *"What do we know about our parameters before we see the data?"*
+- Ignoring the normalising constant $p(X)$, we are left with...
+
+## Bayesian regression equation
+
+(cont.)
+
+$$ p(\theta|X) \propto p(X|\theta)p(\theta) $$
+
+- "The posterior is proportional to the likelihood times the prior!"
+- Calculating the posterior probability in a Bayesian setup is really just a matter of specifying a prior and then estimating the likelihood function (i.e. running a regression).
+- Sounds simple! So what's the catch?
+    + Choice of prior can be contentious. Do we use subjective priors or noninformative ones?
+    + Deriving an analytical solution for the posterior density is often impossible (non-conjugate). Luckily, we are able to solve for this using Markov Chain Monte Carlo (MCMC) simulation.
+
+
+## MCMC, JAGS and rjags
+
+- JAGS (Just Another Gibbs Sampler) is the workhorse programme for Bayesian MCMC simulation. Interacts with *R* through the **rjags** package.
+    + Built off the legacy BUGS (**BRugs**) package.
+- Other options include STAN (**RStan**), **MCMCpack**, **LearnBayes**, etc.
+    + All work in similar ways, but I'd advise sticking with **rjags** for newbies (v. flexible, good support and documentation, etc.)
+
+
 ## Test figure {.flexbox .vcenter .smaller}
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
-library(dplyr) ## For data wrangling
-library(tidyr)
-library(ggplot2)
-library(cowplot) ## For easier, publication-ready formatting of ggplot output
-library(extrafont)
-library(grid)
-library(scales)
-library(extrafont)
-library(RColorBrewer)
-
-# type <- c("Oil", "Coal", "Gas", "Nuclear", "Hydro", "Biofuels & waste", "Other")
-# tpes <- c(31.4, 29.0, 21.3, 4.8, 2.4, 10.0, 1.1)
-# elec <- c(5.0, 40.4, 22.5, 10.9, 16.2, NA, 5.0)
-# # elec <- c(5.0, 40.4, 22.5, 10.9, 16.2, 0, 5.0)
-
-type <- c("Oil", "Coal", "Gas", "Hydro", "Nuclear", "Other")
-# tpes <- C(32.8, 30.2, 24.0, 4.4, 6.6, 1.9) ## BP Statistical Review (2015): Year = 2012
-tpes <- c(32.6, 30.0, 23.7, 6.8, 4.4, 2.5) ## BP Statistical Review (2015): Year = 2014
-elec <- c(5.0, 40.4, 22.5, 16.2, 10.9, 5.0)
-# elec <- c(5.0, 40.4, 22.5, 10.9, 16.2, 0, 5.0)
-
-energy <- tbl_df(data.frame(cbind(type, tpes, elec)))
-
-energy <- 
-  energy %>%
-  gather(form, perc, -type) %>%
-  mutate(perc = as.numeric(perc)) %>%
-  mutate(form_labs = ifelse(form == "tpes", "(a) Total primary energy supply  \n", "(b) Electricity generation only  \n")) 
-
-energy$type <- factor(energy$type, levels = type)
-energy$form_labs <- factor(energy$form_labs, levels = c("(a) Total primary energy supply  \n", "(b) Electricity generation only  \n"))
-
-# my_grbu <- c(rep("#BDBDBD", times = 4), brewer.pal(3, "Blues")[2], rep("#BDBDBD", times = 1))
-my_grbu <- c(rep("#BDBDBD", times = 3), brewer.pal(3, "Blues")[2], rep("#BDBDBD", times = 2))
-
-ggplot(energy %>% filter(!is.na(perc)), #filter(perc != 0), 
-       aes(x = factor(type), y = perc/100, fill = factor(type)), color = factor(type)
-       ) +  
-  stat_summary(fun.y = mean, geom = "bar") +
-  # scale_fill_grey() +
-  scale_fill_manual(values = my_grbu, breaks = type) +
-  scale_y_continuous(labels = percent) +
-  labs(x = NULL, y = NULL) + 
-  facet_wrap(~ form_labs, scales = "free_x") +
-  theme(legend.position = "none",
-        text = element_text(family = "Palatino Linotype"),
-        axis.title = element_text(family = "Palatino Linotype"),
-        axis.text.x = element_text(angle = 45, vjust = 0.95, hjust = 1.01),
-        strip.text = element_text(size = 16), 
-        strip.background = element_rect(fill = "white"), ## Facet strip
-        panel.margin = unit(5, "lines") ## Increase gap between facet panels
-        )
+# library(dplyr) ## For data wrangling
+# library(tidyr)
+# library(ggplot2)
+# library(cowplot) ## For easier, publication-ready formatting of ggplot output
+# library(extrafont)
+# library(grid)
+# library(scales)
+# library(extrafont)
+# library(RColorBrewer)
+# 
+# type <- c("Oil", "Coal", "Gas", "Hydro", "Nuclear", "Other")
+# tpes <- c(32.6, 30.0, 23.7, 6.8, 4.4, 2.5) ## BP Statistical Review (2015): Year = 2014
+# elec <- c(5.0, 40.4, 22.5, 16.2, 10.9, 5.0)
+# 
+# energy <- tbl_df(data.frame(cbind(type, tpes, elec)))
+# 
+# energy <- 
+#   energy %>%
+#   gather(form, perc, -type) %>%
+#   mutate(perc = as.numeric(perc)) %>%
+#   mutate(form_labs = ifelse(form == "tpes", "(a) Total primary energy supply  \n", "(b) Electricity generation only  \n")) 
+# 
+# energy$type <- factor(energy$type, levels = type)
+# energy$form_labs <- factor(energy$form_labs, levels = c("(a) Total primary energy supply  \n", "(b) Electricity generation only  \n"))
+# 
+# my_grbu <- c(rep("#BDBDBD", times = 3), brewer.pal(3, "Blues")[2], rep("#BDBDBD", times = 2))
+# 
+# ggplot(energy %>% filter(!is.na(perc)), #filter(perc != 0), 
+#        aes(x = factor(type), y = perc/100, fill = factor(type)), color = factor(type)
+#        ) +  
+#   stat_summary(fun.y = mean, geom = "bar") +
+#   # scale_fill_grey() +
+#   scale_fill_manual(values = my_grbu, breaks = type) +
+#   scale_y_continuous(labels = percent) +
+#   labs(x = NULL, y = NULL) + 
+#   facet_wrap(~ form_labs, scales = "free_x") +
+#   theme(legend.position = "none",
+#         text = element_text(family = "Palatino Linotype"),
+#         axis.title = element_text(family = "Palatino Linotype"),
+#         axis.text.x = element_text(angle = 45, vjust = 0.95, hjust = 1.01),
+#         strip.text = element_text(size = 16), 
+#         strip.background = element_rect(fill = "white"), ## Facet strip
+#         panel.margin = unit(5, "lines") ## Increase gap between facet panels
+#         )
 ```
 
 Source: BP (2015) and IEA (2014)
