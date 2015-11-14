@@ -67,7 +67,7 @@ $$ \therefore P(A|B) = \frac{0.75 * 0.014}{0.75 * 0.014 + 0.1 * 0.986} = 10\% $$
 
 ## Conjugate priors
 
-- In some cases --- when the prior and likelihood are simple enough and come from the same "family" of distributions --- we can analytically derive the posterior. We call these conjugate priors.
+- In some cases --- when the prior and data (i.e. likelihood function) are simple enough and come from the same "family" of distributions --- we can analytically derive the posterior. We call these conjugate priors.
 - Example: The binomial distribution is conjugate with the beta distribution.
     + Binomial: $f(k|\theta) = \binom{N}{K}\theta^k (1-\theta)^{N-k}$
     + Beta: $f(\theta|\alpha,\beta) = \frac{\Gamma(\alpha+\beta)}{\Gamma(\alpha)\Gamma(\beta)}\theta^{\alpha-1}(1-\theta)^{\beta-1}$
@@ -79,9 +79,10 @@ $$ \therefore P(A|B) = \frac{0.75 * 0.014}{0.75 * 0.014 + 0.1 * 0.986} = 10\% $$
 
 - We have two participants. Let's call them Matt and Chris.
 - Matt is a trusting ecologist from Canada. He is willing to bet that the coin is probably fair..
-    + Matt's prior is centered around 0.5: $Beta(\alpha = 1, \beta = 1)$.
+    + Matt's prior is centered around 0.5: $Beta(\alpha = 20, \beta = 20)$.
 - Chris is a more cautious (cynical?) economist and is holding off judgement until he sees some data.
-    + Chris has a "flat" prior: $Beta(\alpha = 20, \beta = 20)$.
+    + Chris has a "flat" prior: $Beta(\alpha = 1, \beta = 1)$.
+    
 >- It turns out that the coin is actually unfair! It only has a 20% chance of landing on heads.
 
 
@@ -206,7 +207,12 @@ $$ p(\theta|X) \propto p(X|\theta)p(\theta) $$
     + All work in similar ways, but I'd advise sticking with **rjags** for newbies (v. flexible, good support and documentation, etc.)
 
 
-## Let's go through a very simple example {.flexbox .vcenter .smaller}
+## Let's walk through a simple example {.flexbox .vcenter .smaller}
+
+- Say we have data that is decribed by a linear model: 
+$$y = 2 + 4x + \tau,$$ 
+where $\tau = \frac{1}{\sigma^2}$.
+- We estimate this model (using noninformative priors) with **rjags** as follows.
 
 ```{r, message = F, warning = F}
 
@@ -220,21 +226,21 @@ require(ggplot2)
 rm(list=ls())
 set.seed(1280)
 x <- runif(50)
-y <- 3 + 2*x + rnorm(50, mean = 0, sd = 2)
+y <- 2 + 4*x + rnorm(50, mean = 0, sd = 1)
 
 dat <- data.frame(y, x)
 ```
 
-## Let's go through a very simple example {.flexbox .vcenter .smaller}
+## Let's walk through a simple example {.flexbox .vcenter .smaller}
 
 ```{r}
 plot(dat$x, dat$y)
 ```
 
-## Let's go through a very simple example {.flexbox .vcenter .smaller}
+## Let's walk through a simple example {.flexbox .vcenter .smaller}
 
 - JAGS needs to call a .txt file with instructions about the model.
-- Goof practice to write this in the *R* file so that everything is self-contained.
+- Good practice to write this in the *R* file itself so that everything is self-contained.
 ```{r}
 modelstring <- paste(
   "model {
@@ -256,7 +262,7 @@ modelstring <- paste(
 writeLines(modelstring, con = "example1.txt" )
 ```
 
-## Let's go through a very simple example {.flexbox .vcenter .smaller}
+## Let's walk through a simple example {.flexbox .vcenter .smaller}
 ```{r}
 ## Run the JAGS model
 N <- length(x)
@@ -270,7 +276,7 @@ update(reg.jags, n.iter = 1000) # burn in
 regression.sim <- coda.samples(reg.jags, variable.names=parameters, n.iter=15000)
 ```
 
-## Let's go through a very simple example {.flexbox .vcenter .smaller}
+## Let's walk through a simple example {.flexbox .vcenter .smaller}
 ```{r}
 ## Model diagnostics
 geweke.diag(regression.sim)
@@ -278,14 +284,20 @@ heidel.diag(as.mcmc(regression.sim))
 raftery.diag(as.mcmc(regression.sim))
 ```
 
-## Let's go through a very simple example {.flexbox .vcenter .smaller}
+## Let's walk through a simple example {.flexbox .vcenter .smaller}
 ```{r}
 summary(regression.sim)
 ```
 
-## Let's go through a very simple example {.flexbox .vcenter .smaller}
+## Let's walk through a simple example {.flexbox .vcenter .smaller}
 ```{r}
 reg.df <- tbl_df(as.data.frame(regression.sim[[1]])) 
 reg.df <- reg.df %>% gather(coef, value)
-ggplot(reg.df, aes(x = value)) + geom_density() +  facet_wrap(~ coef) 
+ggplot(reg.df, aes(x = value)) + geom_density() +  facet_wrap(~ coef, scales = "free") 
 ```
+
+## Let's walk through a simple example 
+- Our simple model does a decent enough job of estimating the model parameters.
+- The true values of $\alpha=2$ and $\beta=4$ fall comfortably inside the relevant posterior densities.
+- The model fit should improve with more data points.
+- On the other hand, we could also try subjective (informative) priors instead of noninformative ones and see how that affects the final result.
