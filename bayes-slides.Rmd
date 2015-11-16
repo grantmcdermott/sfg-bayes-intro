@@ -83,8 +83,36 @@ $$ \therefore P(A|B) = \frac{0.75 * 0.014}{0.75 * 0.014 + 0.1 * 0.986} = 10\% $$
 - Chris is a more cautious (cynical?) economist and is holding off judgement until he sees some data.
     + Chris has a "flat" prior: $Beta(\alpha = 1, \beta = 1)$.
     
->- It turns out that the coin is actually unfair! It only has a 20% chance of landing on heads.
+>- It turns out that the coin is actually *unfair*... It only has a 25% chance of landing on heads.
 
+
+## Conjugate priors (cont.)
+
+```{r, echo=FALSE}
+set.seed(123)
+
+p <- 0.25
+M_alpha <- 20
+M_beta <- 20
+C_alpha <- 1 
+C_beta <- 1
+## Matt prior
+curve(dbeta(x, M_alpha, M_beta), 
+      col = "red", lwd = 2, lty = 2, xlim = c(0, 1), ylim = c(0, 20), 
+      xlab = "P(Heads)", ylab = "Density")
+## Chris prior
+curve(dbeta(x, C_alpha, C_beta),
+      col = "dodgerblue", lwd = 2, lty = 2, add = TRUE)
+## True probability of coin
+lines(x = c(p, p), y = c(0, 20), lty = 2, lwd = 1,col = "grey60")
+##Legend  
+legend('topleft', lty = 1, col = c("red", "dodgerblue"),
+         legend = c(paste0("Matt ~ Beta(", M_alpha , ", " , M_beta , ")"),
+                    paste0("Chris ~ Beta(", C_alpha , ", " , C_beta , ")")))
+
+```
+
+>- Now let's simulate some coin flips in *R* and see how the players update their beliefs...
 
 ## We can simulate this is in *R* {.smaller}
 
@@ -201,103 +229,107 @@ $$ p(\theta|X) \propto p(X|\theta)p(\theta) $$
 
 ## MCMC, JAGS and rjags
 
-- JAGS (Just Another Gibbs Sampler) is the workhorse programme for Bayesian MCMC simulation. Interacts with *R* through the **rjags** package.
+- <a href="http://mcmc-jags.sourceforge.net/" target="_blank">JAGS</a> (Just Another Gibbs Sampler) is the workhorse programme for Bayesian MCMC simulation. Interacts with *R* through the <a href="https://cran.r-project.org/web/packages/rjags/index.html" target="_blank">**rjags**</a> package.
     + Built off the legacy BUGS (**BRugs**) package.
 - Other options include STAN (**RStan**), **MCMCpack**, **LearnBayes**, etc.
     + All work in similar ways, but I'd advise sticking with **rjags** for newbies (v. flexible, good support and documentation, etc.)
+- Let's walk through a simple example.
 
 
-## Let's walk through a simple example {.flexbox .vcenter .smaller}
+## JAGS example {.smaller}
 
 - Say we have data that is decribed by a linear model: 
-$$y = 2 + 4x + \tau,$$ 
-where $\tau = \frac{1}{\sigma^2}$.
+$$y_i = 2 + 4x_i + \epsilon_i,$$ 
+where $\epsilon_i \thicksim \mathcal{N}(0, \tau)$ and $\tau = \frac{1}{\sigma^2}$.
 - We estimate this model (using noninformative priors) with **rjags** as follows.
 
 ```{r, message = F, warning = F}
 
 ## Load packages
 require(rjags)
-require(dplyr)
-require(tidyr)
-require(ggplot2)
+require(dplyr) ## For manipulating data frames
+require(tidyr) ## For tidying data frames
+require(ggplot2) ## For plotting
 
 ## Create some fake data
 rm(list=ls())
-set.seed(1280)
+set.seed(123)
 x <- runif(50)
 y <- 2 + 4*x + rnorm(50, mean = 0, sd = 1)
 
-dat <- data.frame(y, x)
+my_data <- data.frame(y, x)
 ```
 
-## Let's walk through a simple example {.flexbox .vcenter .smaller}
+## JAGS example (cont.) {.flexbox .vcenter .smaller}
 
 ```{r}
-plot(dat$x, dat$y)
+plot(my_data$x, my_data$y)
 ```
 
-## Let's walk through a simple example {.flexbox .vcenter .smaller}
+## JAGS example (cont.) {.flexbox .vcenter .smaller}
 
 - JAGS needs to call a .txt file with instructions about the model.
 - Good practice to write this in the *R* file itself so that everything is self-contained.
 ```{r}
-modelstring <- paste(
+model_string <- paste(
   "model {
 
   for (i in 1:N){
   
-  y[i] ~ dnorm (mu.y[i], tau.y)
+  y[i] ~ dnorm (mu.y[i], tau.y) ## Our likelihood function (i.e. OLS)
   mu.y[i] <- alpha + beta*x[i]
   
   }
-  
-  alpha ~ dnorm( 0, 0.001 )
+
+  ## Noninformative priors for all parameters (e.g. mean zero, large variance)
+  alpha ~ dnorm( 0, 0.001 ) 
   beta ~ dnorm( 0, 0.001 )
   tau.y ~ dgamma(0.001, 0.001)  
   
   }" 
   )  
 
-writeLines(modelstring, con = "example1.txt" )
+writeLines(model_string, con = "jags_example.txt" )
 ```
 
-## Let's walk through a simple example {.flexbox .vcenter .smaller}
-```{r}
+## JAGS example (cont.) {.flexbox .vcenter .smaller}
+```{r, message = F, warning = F}
 ## Run the JAGS model
 N <- length(x)
 
-dat <- list("N" = N, "y" = y, "x" = x)
-jags.inits <- function() {list (alpha = 0, beta = 0, tau.y = 1)}
-parameters <- c("alpha", "beta", "tau.y")
+my_list <- list("N" = N, "y" = my_data$y, "x" = my_data$x)
+jags_inits <- function() {list (alpha = 0, beta = 0, tau.y = 1)}
+params <- c("alpha", "beta", "tau.y")
 
-reg.jags <- jags.model(file = "example1.txt", data=dat, inits=jags.inits, n.chains=1, n.adapt=1000)
-update(reg.jags, n.iter = 1000) # burn in
-regression.sim <- coda.samples(reg.jags, variable.names=parameters, n.iter=15000)
+jags_mod <- jags.model(file = "jags_example.txt", data = my_list, 
+                       inits = jags_inits, n.chains = 1, n.adapt = 1000)
+update(jags_mod, n.iter = 1000) ## burn in
+jags_samples <- coda.samples(jags_mod, variable.names = params, n.iter = 15000)
 ```
 
-## Let's walk through a simple example {.flexbox .vcenter .smaller}
+## JAGS example (cont.) {.flexbox .vcenter .smaller}
+```{r, message = F, warning = F}
+## Some model diagnostics
+geweke.diag(jags_samples)
+heidel.diag(as.mcmc(jags_samples))
+raftery.diag(as.mcmc(jags_samples))
+```
+
+## JAGS example (cont.) {.flexbox .vcenter .smaller}
+```{r, message = F, warning = F}
+summary(jags_samples)
+```
+
+## JAGS example (cont.) {.flexbox .vcenter .smaller}
 ```{r}
-## Model diagnostics
-geweke.diag(regression.sim)
-heidel.diag(as.mcmc(regression.sim))
-raftery.diag(as.mcmc(regression.sim))
+reg_df <- tbl_df(as.data.frame(jags_samples[[1]])) 
+reg_df <- reg_df %>% gather(coef, value)
+ggplot(reg_df, aes(x = value)) + geom_density() + facet_wrap(~ coef, scales = "free") 
 ```
 
-## Let's walk through a simple example {.flexbox .vcenter .smaller}
-```{r}
-summary(regression.sim)
-```
-
-## Let's walk through a simple example {.flexbox .vcenter .smaller}
-```{r}
-reg.df <- tbl_df(as.data.frame(regression.sim[[1]])) 
-reg.df <- reg.df %>% gather(coef, value)
-ggplot(reg.df, aes(x = value)) + geom_density() +  facet_wrap(~ coef, scales = "free") 
-```
-
-## Let's walk through a simple example 
-- Our simple model does a decent enough job of estimating the model parameters.
-- The true values of $\alpha=2$ and $\beta=4$ fall comfortably inside the relevant posterior densities.
-- The model fit should improve with more data points.
-- On the other hand, we could also try subjective (informative) priors instead of noninformative ones and see how that affects the final result.
+## JAGS example (cont.)
+- Results
+    + Our simple model does a decent enough job of estimating the model parameters.
+    + The true values of $\alpha=2$ and $\beta=4$ fall comfortably inside the relevant posterior densities.
+    + The model fit should improve with more data points.
+    + On the other hand, we could also try subjective (informative) priors instead of noninformative ones and see how that affects the final result.

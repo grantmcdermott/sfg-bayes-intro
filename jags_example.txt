@@ -1,0 +1,15 @@
+model {
+
+  for (i in 1:N){
+  
+  y[i] ~ dnorm (mu.y[i], tau.y) ## Our likelihood function (i.e. OLS)
+  mu.y[i] <- alpha + beta*x[i]
+  
+  }
+
+  ## Noninformative priors for all parameters (e.g. mean zero, large variance)
+  alpha ~ dnorm( 0, 0.001 ) 
+  beta ~ dnorm( 0, 0.001 )
+  tau.y ~ dgamma(0.001, 0.001)  
+  
+  }
